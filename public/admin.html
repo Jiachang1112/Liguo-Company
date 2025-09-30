@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-Hant"><meta charset="utf-8">
+<title>立國實業｜訂單列表</title>
+<body style="font-family:system-ui;max-width:1000px;margin:24px auto">
+  <h2>訂單列表（最近 200 筆）</h2>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead><tr><th>訂單編號</th><th>客戶</th><th>電話</th><th>Email</th><th>金額</th><th>狀態</th><th>時間</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    fetch('/api/admin/orders').then(r=>r.json()).then(list=>{
+      rows.innerHTML = list.map(o=>`<tr>
+        <td>${o.orderNo}</td><td>${o.name}</td><td>${o.phone}</td>
+        <td>${o.email}</td><td>NT$ ${o.total}</td><td>${o.status}</td><td>${o.createdAt}</td>
+      </tr>`).join('');
+    });
+  </script>
+</body></html>
