@@ -1,59 +1,47 @@
 // functions/api/auth/login.js
-/**
- * Redirect user to Google OAuth consent screen.
- * - Generates a CSRF "state" value and stores it in a Secure, HttpOnly cookie
- * - Builds the Google OAuth URL and redirects
- *
- * Required env:
- *   - GOOGLE_CLIENT_ID
- *   - BASE_URL (fallback to request origin if missing)
- */
+// 產生 Google OAuth 同意頁網址並導向，順便在 cookie 設置 CSRF "state"
+
 export async function onRequestGet(context) {
   const { request, env } = context;
-
-  // --- base URL (for callback) ---
   const reqUrl = new URL(request.url);
-  const baseUrl = (env.BASE_URL && env.BASE_URL.trim()) || `${reqUrl.protocol}//${reqUrl.host}`;
+
+  // 1) 計算 baseUrl 與 callback URL
+  const baseUrl =
+    (env.BASE_URL && env.BASE_URL.trim()) || `${reqUrl.protocol}//${reqUrl.host}`;
   const redirectUri = `${baseUrl}/api/auth/callback`;
 
-  // --- generate a random state and store it in cookie for CSRF protection ---
-  const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+  // 2) 產生 CSRF 用的 state，放到 HttpOnly cookie
+  const state = crypto.randomUUID();
   const stateCookie = [
     `oauth_state=${state}`,
     "Path=/",
     "HttpOnly",
     "Secure",
-    "SameSite=Lax",
-    "Max-Age=600" // 10 minutes
+    "SameSite=None",
+    "Max-Age=600", // 10 minutes
   ].join("; ");
 
-  // --- scopes you need (email + profile + openid) ---
-  const scope = "openid email profile";
-
-  // --- build the Google OAuth consent URL ---
-  const googleAuth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  googleAuth.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
-  googleAuth.searchParams.set("redirect_uri", redirectUri);
-  googleAuth.searchParams.set("response_type", "code");
-  googleAuth.searchParams.set("scope", scope);
-  googleAuth.searchParams.set("access_type", "offline");           // get refresh_token on first consent
-  googleAuth.searchParams.set("include_granted_scopes", "true");   // reuse previous consent
-  googleAuth.searchParams.set("state", state);
-  // 可選：每次都強制出現同意畫面
-  // googleAuth.searchParams.set("prompt", "consent");
-
-  // --- redirect with Set-Cookie(state) ---
-  const headers = new Headers({
-    Location: googleAuth.toString(),
-    "Set-Cookie": stateCookie,
+  // 3) 組 Google OAuth v2 同意頁參數
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    access_type: "offline",
+    include_granted_scopes: "true",
+    // 視需求是否要每次都跳授權畫面；若不需要可拿掉
+    prompt: "consent",
   });
 
-  return new Response(null, { status: 302, headers });
-}
+  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-/** Helper: base64url encode Uint8Array */
-function base64UrlEncode(bytes) {
-  let str = "";
-  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  // 4) 導向 Google，同時把 state 寫入 cookie
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Set-Cookie": stateCookie,
+      Location: googleAuthUrl,
+    },
+  });
 }
