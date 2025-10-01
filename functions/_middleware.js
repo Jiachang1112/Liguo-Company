@@ -1,28 +1,46 @@
 // functions/_middleware.js
-// Middleware: 保護後台頁面，其他頁面不受影響。
-// 只攔截 /admin.html，若沒登入會導向 /api/auth/login
-
 export async function onRequest(context) {
   const { request, next } = context;
-  const url = new URL(request.url);
 
   try {
-    // 只針對 /admin.html 做檢查
-    if (url.pathname === "/admin.html") {
-      const cookie = request.headers.get("Cookie") || "";
-      const session = cookie.split("; ").find(row => row.startsWith("session="));
+    const url = new URL(request.url);
+    const p = url.pathname || "/";
 
-      if (!session) {
-        // 沒有登入 → 導向登入
-        return Response.redirect("/api/auth/login", 302);
-      }
+    // 允許通過的路徑（不要檔靜態檔與 API，否則會進入死循環或 throw）
+    const isStatic =
+      p === "/" ||
+      p.startsWith("/assets/") ||
+      p.startsWith("/public/") ||
+      p.startsWith("/favicon") ||
+      p.endsWith(".css") ||
+      p.endsWith(".js") ||
+      p.endsWith(".png") ||
+      p.endsWith(".jpg") ||
+      p.endsWith(".jpeg") ||
+      p.endsWith(".ico") ||
+      p.endsWith(".svg");
+
+    const isAuthApi = p.startsWith("/api/auth/");
+    const isOtherApi = p.startsWith("/api/");
+
+    // 這些直接放行
+    if (isStatic || isAuthApi || isOtherApi) {
+      return await next();
     }
 
-    // 其他頁面正常繼續
+    // 其餘頁面才檢查 session
+    const cookie = request.headers.get("Cookie") || "";
+    const hasSession = cookie.split(/;\s*/).some((row) => row.startsWith("session="));
+
+    if (!hasSession) {
+      // 未登入就導向登入
+      return Response.redirect(`${url.origin}/api/auth/login`, 302);
+    }
+
     return await next();
   } catch (err) {
-    // 錯誤處理，避免 Worker 崩潰
-    console.error("Middleware error:", err);
-    return new Response("Something went wrong", { status: 500 });
+    // 最重要：就算出錯也不要讓整站 1101，回退為放行
+    console.error("middleware error:", err);
+    return await context.next();
   }
 }
