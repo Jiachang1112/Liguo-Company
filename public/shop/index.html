@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>立國實業 - 線上快速下單</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>立國實業 | 一頁式作品集</title>
+  <meta name="description" content="立國實業：工業安全用品 / 公司採購快速下單平台" />
+  <link rel="stylesheet" href="assets/style.css" />
   <style>
     body {
       font-family: "Microsoft JhengHei", sans-serif;
@@ -23,33 +25,36 @@
       margin: 0;
       font-size: 20px;
     }
-    #auth-buttons a {
+    nav button {
       padding: 6px 12px;
-      border-radius: 4px;
-      text-decoration: none;
       margin-left: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
       font-size: 14px;
     }
-    #login-btn {
+    #cart-btn {
+      background: #007bff;
+      color: white;
+    }
+    #auth-btn {
       background: #4285F4;
       color: white;
     }
-    #logout-btn {
+    #auth-btn.logout {
       background: #d9534f;
-      color: white;
-      display: none;
     }
     .container {
       max-width: 1200px;
       margin: 20px auto;
       padding: 0 16px;
     }
-    .products {
+    .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 16px;
     }
-    .product {
+    .card {
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 6px;
@@ -57,23 +62,23 @@
       text-align: center;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    .product img {
+    .card img {
       max-width: 100%;
       height: 120px;
       object-fit: contain;
       background: #f9f9f9;
       margin-bottom: 8px;
     }
-    .product h3 {
+    .card h3 {
       font-size: 16px;
       margin: 6px 0;
     }
-    .product p {
+    .card p {
       font-size: 14px;
       margin: 4px 0;
       color: #555;
     }
-    .product button {
+    .card button {
       padding: 6px 12px;
       background: #28a745;
       color: white;
@@ -81,7 +86,7 @@
       border-radius: 4px;
       cursor: pointer;
     }
-    .product button:hover {
+    .card button:hover {
       background: #218838;
     }
   </style>
@@ -89,60 +94,68 @@
 <body>
   <header>
     <h1>立國實業</h1>
-    <div id="auth-buttons">
-      <a href="/api/auth/login" id="login-btn">登入</a>
-      <a href="/api/auth/logout" id="logout-btn">登出</a>
-    </div>
+    <nav>
+      <button id="cart-btn" onclick="window.location.href='/cart.html'">購物車</button>
+      <button id="auth-btn">登入</button>
+    </nav>
   </header>
 
   <div class="container">
     <h2>線上快速下單</h2>
-    <p>工業安全用品 / 公司採購與聯絡：02-0000-0000 ｜ service@liguo.com.tw</p>
+    <p>工業安全用品 / 公司採購與聯絡：02-0000-0000 | service@liguo.com.tw</p>
 
-    <div class="products">
-      <div class="product">
-        <img src="https://via.placeholder.com/200x120?text=商品01" alt="商品01">
-        <h3>商品 01</h3>
-        <p>SKU：P-001</p>
-        <p><strong>NT$ 100</strong></p>
-        <button>加入購物車</button>
-      </div>
-      <div class="product">
-        <img src="https://via.placeholder.com/200x120?text=商品02" alt="商品02">
-        <h3>商品 02</h3>
-        <p>SKU：P-002</p>
-        <p><strong>NT$ 200</strong></p>
-        <button>加入購物車</button>
-      </div>
-      <div class="product">
-        <img src="https://via.placeholder.com/200x120?text=商品03" alt="商品03">
-        <h3>商品 03</h3>
-        <p>SKU：P-003</p>
-        <p><strong>NT$ 300</strong></p>
-        <button>加入購物車</button>
-      </div>
-    </div>
+    <div id="product-list" class="grid"></div>
   </div>
 
   <script>
-    // 嘗試從 /api/auth/me 取得使用者資料
-    fetch("/api/auth/me")
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.email) {
-          // 已登入 → 顯示登出
-          document.getElementById("login-btn").style.display = "none";
-          document.getElementById("logout-btn").style.display = "inline-block";
+    // 商品資料
+    const products = [
+      { id: "P-001", name: "商品 01", price: 100, img: "assets/img/p1.png" },
+      { id: "P-002", name: "商品 02", price: 200, img: "assets/img/p2.png" },
+      { id: "P-003", name: "商品 03", price: 300, img: "assets/img/p3.png" },
+      { id: "P-004", name: "商品 04", price: 400, img: "assets/img/p4.png" },
+    ];
+
+    const productList = document.getElementById("product-list");
+    productList.innerHTML = products.map(p => `
+      <div class="card">
+        <img src="${p.img}" alt="${p.name}">
+        <h3>${p.name}</h3>
+        <p>SKU：${p.id}</p>
+        <p><strong>NT$ ${p.price}</strong></p>
+        <button onclick="addToCart('${p.id}')">加入購物車</button>
+      </div>
+    `).join("");
+
+    function addToCart(id) {
+      alert("已加入購物車: " + id);
+    }
+
+    // --- Google 登入控制 ---
+    const authBtn = document.getElementById("auth-btn");
+
+    async function checkLogin() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const user = await res.json();
+          authBtn.textContent = "登出 (" + (user.email || "帳號") + ")";
+          authBtn.classList.add("logout");
+          authBtn.onclick = () => window.location.href = "/api/auth/logout";
         } else {
-          // 未登入 → 顯示登入
-          document.getElementById("login-btn").style.display = "inline-block";
-          document.getElementById("logout-btn").style.display = "none";
+          authBtn.textContent = "登入";
+          authBtn.classList.remove("logout");
+          authBtn.onclick = () => window.location.href = "/api/auth/login";
         }
-      })
-      .catch(() => {
-        document.getElementById("login-btn").style.display = "inline-block";
-        document.getElementById("logout-btn").style.display = "none";
-      });
+      } catch (err) {
+        console.error("登入檢查失敗", err);
+        authBtn.textContent = "登入";
+        authBtn.classList.remove("logout");
+        authBtn.onclick = () => window.location.href = "/api/auth/login";
+      }
+    }
+
+    checkLogin();
   </script>
 </body>
 </html>
