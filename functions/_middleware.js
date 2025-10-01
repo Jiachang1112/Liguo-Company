@@ -1,11 +1,13 @@
 export async function onRequest(context) {
-  const url = new URL(context.request.url);
+  const { request } = context;
+  const url = new URL(request.url);
 
-  // 只放行 /api/auth/* 給各自 handler；其餘回到靜態檔案
-  if (url.pathname.startsWith('/api/auth/')) {
-    return context.next();
+  const cookie = request.headers.get("Cookie") || "";
+  const session = cookie.split("; ").find(row => row.startsWith("session="));
+
+  if (!session && !url.pathname.startsWith("/api/auth")) {
+    return Response.redirect("/api/auth/login", 302);
   }
 
-  // 重要：否則首頁、資源會被你的 handler 攔走 → 1101
-  return context.env.ASSETS.fetch(context.request);
+  return await context.next();
 }
