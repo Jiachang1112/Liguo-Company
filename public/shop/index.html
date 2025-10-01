@@ -18,11 +18,10 @@
 <body class="bg-light">
   <!-- NAV -->
   <nav class="navbar navbar-expand-lg bg-white border-bottom">
-    <div class="container align-items-center">
+    <div class="container">
       <a class="navbar-brand fw-bold" href="/">立國實業</a>
-      <!-- 這個 ms-auto 會把按鈕推到右邊（跟你截圖一樣） -->
-      <div class="ms-auto d-flex gap-2">
-        <a class="btn btn-outline-primary disabled">登入</a>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="/admin.html">後台</a>
         <button class="btn btn-dark" data-bs-toggle="offcanvas" data-bs-target="#cartPanel">
           購物車 <span id="cartCount" class="badge bg-secondary">0</span>
         </button>
@@ -33,12 +32,14 @@
   <!-- HERO -->
   <main class="container">
     <section class="hero">
-      <h1 class="h4 mb-2">線上快速下單</h1>
+      <h1 class="h3 mb-2">線上快速下單</h1>
       <div class="text-muted">工業安全用品／公司採購與聯絡：02-0000-0000｜service@liguo.com.tw</div>
     </section>
 
     <!-- PRODUCTS -->
-    <div id="products" class="row g-3"></div>
+    <div id="products" class="row g-3">
+      <!-- 這裡會由 JS 依 API 自動渲染所有商品 -->
+    </div>
   </main>
 
   <!-- CART OFFCANVAS -->
@@ -128,7 +129,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    /*** 購物車邏輯（純前端） ***/
+    /*** 購物車邏輯 ***/
     const cart = JSON.parse(localStorage.getItem('cart')||'[]');
     const saveCart = ()=>localStorage.setItem('cart', JSON.stringify(cart));
     const fmt = n => 'NT$ ' + n.toLocaleString();
@@ -136,12 +137,17 @@
     const toast = new bootstrap.Toast(toastEl,{delay:1600});
     const show = (msg)=>{ toastEl.querySelector('.toast-body').textContent = msg; toast.show(); };
 
-    function add(p){
+    // 由 SKU 對應商品資訊（載入商品後填入）
+    const PRODUCT_MAP = new Map();
+
+    function addBySku(sku){
+      const p = PRODUCT_MAP.get(sku);
+      if(!p) return;
       const found = cart.find(i=>i.sku===p.sku);
-      if(found) found.qty++;
-      else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1});
+      if(found) found.qty++; else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1});
       saveCart(); renderCart(); show('已加入購物車');
     }
+
     function changeQty(sku,delta){
       const i = cart.find(x=>x.sku===sku);
       if(!i) return;
@@ -149,9 +155,9 @@
       if(i.qty<=0) cart.splice(cart.indexOf(i),1);
       saveCart(); renderCart();
     }
+
     function renderCart(){
-      const count = cart.reduce((s,i)=>s+i.qty,0);
-      document.getElementById('cartCount').textContent = count;
+      document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
       const wrap = document.getElementById('cartItems');
       wrap.innerHTML = cart.length ? cart.map(i=>`
         <div class="d-flex justify-content-between align-items-center border-bottom py-2">
@@ -169,54 +175,61 @@
       document.getElementById('shipping').textContent = fmt(shipping);
       document.getElementById('total').textContent = fmt(subtotal+shipping);
     }
-    document.getElementById('clearCart').onclick = ()=>{
-      cart.length=0; saveCart(); renderCart();
-    };
-    document.getElementById('checkout').onclick = ()=>{
-      if(!cart.length) return show('購物車是空的');
-      new bootstrap.Modal('#checkoutDlg').show();
-    };
+
+    document.getElementById('clearCart').onclick = ()=>{ cart.length=0; saveCart(); renderCart(); };
+    document.getElementById('checkout').onclick = ()=>{ if(!cart.length) return show('購物車是空的'); new bootstrap.Modal('#checkoutDlg').show(); };
+
     document.getElementById('orderForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      // 純前端示意（沒有串後端）；若之後要接金流/下單，再把這段改成呼叫 API
-      show('訂單已送出（示意）');
+      const customer = Object.fromEntries(new FormData(e.target).entries());
+      const res = await fetch('/api/orders',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ customer, items:cart })});
+      const r = await res.json();
+      if(r.next){ window.location.href = r.next; return; } // 金流模擬
+      show('訂單成立：'+r.orderNo);
       cart.length=0; saveCart(); renderCart();
       bootstrap.Modal.getInstance(document.getElementById('checkoutDlg')).hide();
     });
 
-    /*** 50 個商品（靜態清單；之後可改名/價/圖/sku） ***/
-    const PRODUCTS = Array.from({length:50},(_,i)=>{
-      const n2 = (i+1).toString().padStart(2,'0');
-      const n3 = (i+1).toString().padStart(3,'0');
-      return {
-        sku: `P-${n3}`,
-        name: `商品 ${n2}`,
-        price: (i+1)*100,
-        image: `/assets/product-${n2}.jpg`
-      };
-    });
-
-    function renderProducts(){
+    /*** 產品渲染（從 /api/products 抓全部） ***/
+    async function loadProducts(){
       const box = document.getElementById('products');
-      box.innerHTML = PRODUCTS.map(p=>`
-        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-          <div class="card product-card h-100 shadow-sm">
-            <img src="${p.image}" alt="${p.name}" onerror="this.src='/assets/placeholder.jpg'">
-            <div class="card-body">
-              <h5 class="card-title">${p.name}</h5>
-              <div class="text-muted small mb-2">SKU：${p.sku}</div>
-              <div class="mt-auto d-flex justify-content-between align-items-center">
-                <div class="price">${fmt(p.price)}</div>
-                <button class="btn btn-outline-dark btn-sm" onclick='add(${JSON.stringify(p)})'>加入購物車</button>
+      box.innerHTML = `<div class="text-muted p-3">載入商品中…</div>`;
+      try{
+        const res = await fetch('/api/products', {headers:{'Accept':'application/json'}});
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const items = await res.json(); // 期望為 [{sku,name,price,image}, ...]
+        PRODUCT_MAP.clear();
+        items.forEach(p=>PRODUCT_MAP.set(p.sku, p));
+
+        if(items.length===0){
+          box.innerHTML = `<div class="text-muted p-3">目前沒有上架商品</div>`;
+          return;
+        }
+
+        box.innerHTML = items.map(p=>`
+          <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+            <div class="card product-card h-100 shadow-sm">
+              <img src="${p.image||'/assets/placeholder.jpg'}" alt="${p.name}"
+                   onerror="this.src='/assets/placeholder.jpg'">
+              <div class="card-body">
+                <h5 class="card-title">${p.name}</h5>
+                <div class="text-muted small mb-2">SKU：${p.sku}</div>
+                <div class="mt-auto d-flex justify-content-between align-items-center">
+                  <div class="price">NT$ ${(p.price||0).toLocaleString()}</div>
+                  <button class="btn btn-outline-dark btn-sm" onclick="addBySku('${p.sku}')">加入購物車</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      `).join('');
+        `).join('');
+      }catch(err){
+        console.error(err);
+        box.innerHTML = `<div class="text-danger p-3">載入商品失敗，請稍後再試。</div>`;
+      }
     }
 
     // 初始化
-    renderProducts();
+    loadProducts();
     renderCart();
   </script>
 </body>
