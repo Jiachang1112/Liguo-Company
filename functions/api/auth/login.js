@@ -1,13 +1,17 @@
-export async function onRequestGet() {
-  const redirectUri = "https://accounts.google.com/o/oauth2/v2/auth";
-  const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: "https://liguo-company.pages.dev/api/auth/callback",
-    response_type: "code",
-    scope: "openid email profile",
-    access_type: "offline",
-    prompt: "consent"
-  });
+export async function onRequestGet({ env }) {
+  const state = crypto.randomUUID();
+  const redirectUri = `${env.BASE_URL}/api/auth/callback`;
 
-  return Response.redirect(`${redirectUri}?${params.toString()}`, 302);
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.search = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'offline',
+    prompt: 'consent',
+    state,
+  }).toString();
+
+  return Response.redirect(url.toString(), 302);
 }
