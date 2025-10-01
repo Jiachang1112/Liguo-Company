@@ -20,13 +20,8 @@
   <nav class="navbar navbar-expand-lg bg-white border-bottom">
     <div class="container">
       <a class="navbar-brand fw-bold" href="/">立國實業</a>
-      <div class="d-flex align-items-center gap-2">
-        <!-- A) 新增：登入 / 登出 按鈕 + 使用者顯示 -->
-        <button id="loginBtn"  class="btn btn-outline-primary">使用 Google 登入</button>
-        <button id="logoutBtn" class="btn btn-outline-secondary d-none">登出</button>
-        <span   id="userName" class="ms-1 text-muted small"></span>
-        <!-- 既有按鈕 -->
-        <a class="btn btn-outline-secondary ms-2" href="/admin.html">後台</a>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="/admin.html">後台</a>
         <button class="btn btn-dark" data-bs-toggle="offcanvas" data-bs-target="#cartPanel">
           購物車 <span id="cartCount" class="badge bg-secondary">0</span>
         </button>
@@ -176,7 +171,11 @@
     document.getElementById('orderForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const customer = Object.fromEntries(new FormData(e.target).entries());
-      const res = await fetch('/api/orders',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ customer, items:cart })});
+      const res = await fetch('/api/orders',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ customer, items:cart })
+      });
       const r = await res.json();
       if(r.next){ window.location.href = r.next; return; }
       show('訂單成立：'+r.orderNo);
@@ -192,7 +191,7 @@
         sku: `P-${n3}`,
         name: `商品 ${n2}`,
         price: (i+1)*100,
-        image: `/assets/product-${n2}.jpg`
+        image: `/assets/product-${n2}.jpg`  // 沒圖會 fallback 到 placeholder.jpg
       };
     });
 
@@ -215,47 +214,9 @@
       `).join('');
     }
 
-    // ---------- A) 登入 / 登出按鈕邏輯（最小整合） ----------
-    const loginBtn  = document.getElementById('loginBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userName  = document.getElementById('userName');
-
-    // 點登入 → 走 OAuth Login
-    loginBtn?.addEventListener('click', () => {
-      location.href = '/api/auth/login';
-    });
-
-    // 點登出 → 清除 session
-    logoutBtn?.addEventListener('click', () => {
-      location.href = '/api/auth/logout';
-    });
-
-    // 啟動時檢查是否登入
-    async function refreshAuth() {
-      try {
-        const r = await fetch('/api/auth/me', { credentials: 'include' });
-        if (r.ok) {
-          const me = await r.json();
-          userName.textContent = `您好，${me.name}`;
-          loginBtn?.classList.add('d-none');
-          logoutBtn?.classList.remove('d-none');
-        } else {
-          userName.textContent = '';
-          loginBtn?.classList.remove('d-none');
-          logoutBtn?.classList.add('d-none');
-        }
-      } catch (err) {
-        console.error('auth check failed', err);
-        userName.textContent = '';
-        loginBtn?.classList.remove('d-none');
-        logoutBtn?.classList.add('d-none');
-      }
-    }
-
     // 初始化
     renderProducts();
     renderCart();
-    refreshAuth(); // 這行會讓登入狀態一載入就正確顯示
   </script>
 </body>
 </html>
