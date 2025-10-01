@@ -1,39 +1,40 @@
 // functions/api/auth/me.js
+/**
+ * 檢查目前登入的使用者
+ * - 從 Cookie 讀取 session
+ * - 如果有，就回傳使用者資訊
+ * - 如果沒有，回傳未登入狀態
+ */
+
 export async function onRequestGet(context) {
   const { request } = context;
   const cookie = request.headers.get("Cookie") || "";
-  const session = cookie
-    .split("; ")
-    .find((row) => row.startsWith("session="));
+  const session = cookie.split("; ").find(row => row.startsWith("session="));
 
   if (!session) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "未登入" }),
+      { status: 401, headers: { "Content-Type": "application/json" } }
+    );
   }
 
-  // 假設 callback.js 把 { name, email, exp } base64 存在 session cookie
   try {
-    const encoded = session.split("=")[1] || "";
-    const json = atob(encoded);
-    const user = JSON.parse(json);
+    // session 格式: "session=<json字串>" → 需要 decode
+    const raw = decodeURIComponent(session.split("=")[1]);
+    const user = JSON.parse(raw);
 
-    // 可選：檢查是否過期
-    if (user.exp && Date.now() > user.exp) {
-      return new Response(JSON.stringify({ error: "expired" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ name: user.name, email: user.email }), {
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: "bad session" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        email: user.email,
+        name: user.name || "",
+        picture: user.picture || ""
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "Session 無效" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
