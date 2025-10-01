@@ -25,6 +25,9 @@
         <button class="btn btn-dark" data-bs-toggle="offcanvas" data-bs-target="#cartPanel">
           購物車 <span id="cartCount" class="badge bg-secondary">0</span>
         </button>
+        <!-- ▶▶▶ 新增：登入/登出按鈕（其餘未動） -->
+        <a id="authBtn" class="btn btn-outline-primary" href="/api/auth/login">登入</a>
+        <!-- ◀◀◀ 新增結束 -->
       </div>
     </div>
   </nav>
@@ -214,5 +217,39 @@
     renderProducts();
     renderCart();
   </script>
+
+  <!-- ▶▶▶ 新增：登入狀態判斷腳本（其餘未動） -->
+  <script>
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        const btn = document.getElementById('authBtn');
+        if (!btn) return;
+
+        if (res.ok) {
+          const u = await res.json();
+          btn.textContent = u?.name ? `登出（${u.name}）` : (u?.email ? `登出（${u.email}）` : '登出');
+          btn.classList.remove('btn-outline-primary');
+          btn.classList.add('btn-outline-danger');
+          btn.href = '/api/auth/logout';
+        } else {
+          btn.textContent = '登入';
+          btn.classList.remove('btn-outline-danger');
+          btn.classList.add('btn-outline-primary');
+          btn.href = '/api/auth/login';
+        }
+      } catch (e) {
+        const btn = document.getElementById('authBtn');
+        if (btn) {
+          btn.textContent = '登入';
+          btn.classList.remove('btn-outline-danger');
+          btn.classList.add('btn-outline-primary');
+          btn.href = '/api/auth/login';
+        }
+      }
+    })();
+  </script>
+  <!-- ◀◀◀ 新增結束 -->
+
 </body>
 </html>
