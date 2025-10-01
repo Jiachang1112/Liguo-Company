@@ -131,4 +131,110 @@
   <script>
     /*** 購物車邏輯 ***/
     const cart = JSON.parse(localStorage.getItem('cart')||'[]');
-    const saveCart = ()=>localStorage.
+    const saveCart = ()=>localStorage.setItem('cart', JSON.stringify(cart));
+    const fmt = n => 'NT$ ' + n.toLocaleString();
+    const toastEl = document.getElementById('toast');
+    const toast = new bootstrap.Toast(toastEl,{delay:1600});
+    const show = (msg)=>{ toastEl.querySelector('.toast-body').textContent = msg; toast.show(); };
+
+    function add(p){
+      const found = cart.find(i=>i.sku===p.sku);
+      if(found) found.qty++; else cart.push({sku:p.sku,name:p.name,price:p.price,qty:1});
+      saveCart(); renderCart(); show('已加入購物車');
+    }
+    function changeQty(sku,delta){
+      const i = cart.find(x=>x.sku===sku);
+      if(!i) return;
+      i.qty += delta;
+      if(i.qty<=0) cart.splice(cart.indexOf(i),1);
+      saveCart(); renderCart();
+    }
+    function renderCart(){
+      document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
+      const wrap = document.getElementById('cartItems');
+      wrap.innerHTML = cart.length ? cart.map(i=>`
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+          <div>${i.name} <span class="text-muted">× ${i.qty}</span></div>
+          <div>${fmt(i.price*i.qty)}</div>
+        </div>
+        <div class="d-flex gap-2 my-2">
+          <button class="btn btn-outline-secondary btn-sm" onclick="changeQty('${i.sku}',-1)">－</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="changeQty('${i.sku}',+1)">＋</button>
+        </div>
+      `).join('') : '<div class="text-muted">尚無商品</div>';
+      const subtotal = cart.reduce((s,i)=>s+i.price*i.qty,0);
+      const shipping = (subtotal>2000||subtotal===0)?0:100;
+      document.getElementById('subtotal').textContent = fmt(subtotal);
+      document.getElementById('shipping').textContent = fmt(shipping);
+      document.getElementById('total').textContent = fmt(subtotal+shipping);
+    }
+    document.getElementById('clearCart').onclick = ()=>{ cart.length=0; saveCart(); renderCart(); };
+    document.getElementById('checkout').onclick = ()=>{ if(!cart.length) return show('購物車是空的'); new bootstrap.Modal('#checkoutDlg').show(); };
+    document.getElementById('orderForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const customer = Object.fromEntries(new FormData(e.target).entries());
+      const res = await fetch('/api/orders',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ customer, items:cart })});
+      const r = await res.json();
+      if(r.next){ window.location.href = r.next; return; }
+      show('訂單成立：'+r.orderNo);
+      cart.length=0; saveCart(); renderCart();
+      bootstrap.Modal.getInstance(document.getElementById('checkoutDlg')).hide();
+    });
+
+    /*** 50 個商品（前端靜態清單） ***/
+    const PRODUCTS = Array.from({length:50},(_,i)=>{
+      const n2 = (i+1).toString().padStart(2,'0');
+      const n3 = (i+1).toString().padStart(3,'0');
+      return {
+        sku: `P-${n3}`,
+        name: `商品 ${n2}`,
+        price: (i+1)*100,
+        image: `/assets/product-${n2}.jpg`
+      };
+    });
+
+    function renderProducts(){
+      const box = document.getElementById('products');
+      box.innerHTML = PRODUCTS.map(p=>`
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+          <div class="card product-card h-100 shadow-sm">
+            <img src="${p.image}" alt="${p.name}" onerror="this.src='/assets/placeholder.jpg'">
+            <div class="card-body">
+              <h5 class="card-title">${p.name}</h5>
+              <div class="text-muted small mb-2">SKU：${p.sku}</div>
+              <div class="mt-auto d-flex justify-content-between align-items-center">
+                <div class="price">NT$ ${p.price.toLocaleString()}</div>
+                <button class="btn btn-outline-dark btn-sm" onclick='add(${JSON.stringify(p)})'>加入購物車</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 初始化
+    renderProducts();
+    renderCart();
+
+    /*** 登入登出邏輯 ***/
+    async function renderAuth(){
+      const box = document.getElementById('authArea');
+      try {
+        const res = await fetch('/api/auth/me');
+        if(res.ok){
+          const user = await res.json();
+          box.innerHTML = `
+            <span class="me-2">Hi, ${user.name||'使用者'}</span>
+            <a class="btn btn-outline-danger btn-sm" href="/api/auth/logout">登出</a>
+          `;
+        } else {
+          box.innerHTML = `<a class="btn btn-outline-primary btn-sm" href="/api/auth/login">登入</a>`;
+        }
+      } catch(e){
+        box.innerHTML = `<a class="btn btn-outline-primary btn-sm" href="/api/auth/login">登入</a>`;
+      }
+    }
+    renderAuth();
+  </script>
+</body>
+</html>
